@@ -1,0 +1,3 @@
+pydelphin==1.6.0
+flair
+numpy

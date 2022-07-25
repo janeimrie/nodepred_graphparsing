@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#PBS -P CSCI1335
+#PBS -q gpu_3
+#PBS -l select=1:ncpus=20:ngpus=2
+#PBS -l walltime=6:0:0
+#PBS -M imrjan001@myuct.ac.za
+
+
+module load chpc/python/3.7.0
+source /home/jimrie/lustre/jimrie/Code/myenv/bin/activate
+
+echo "Running script"
+
+python3 /home/jimrie/lustre/jimrie/Code/flair_layer.py 2 > /home/jimrie/lustre/jimrie/Code/output_2.txt

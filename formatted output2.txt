@@ -1,0 +1,33 @@
+{"id": "20037011", "source": "wsj", "input": "It's imaginative and often funny.", 
+"tokens": 
+[
+{"form": "It", "lemma": "It", "id": 0, "anchors": [{"from": 0, "end": 2}]}, 
+{"form": "'s", "lemma": "'s", "id": 1, "anchors": [{"from": 2, "end": 4}]}, 
+{"form": "imaginative", "lemma": "imaginative", "id": 2, "anchors": [{"from": 5, "end": 16}]}, 
+{"form": "and", "lemma": "and", "id": 3, "anchors": [{"from": 17, "end": 20}]}, 
+{"form": "often", "lemma": "often", "id": 4, "anchors": [{"from": 21, "end": 26}]}, 
+{"form": "funny.", "lemma": "funny", "id": 5, "anchors": [{"from": 27, "end": 33}]}
+], 
+"nodes": 
+[
+{"id": 0, "anchors": [{"from": 0, "end": 0}], "label": "pron"}, 
+{"id": 1, "anchors": [{"from": 0, "end": 0}], "label": "pronoun_q"}, 
+{"id": 2, "anchors": [{"from": 2, "end": 2}], "label": "_a_1", "lemma": "imaginative", "is_surface": true}, 
+{"id": 3, "anchors": [{"from": 3, "end": 3}], "label": "_c", "lemma": "and", "is_surface": true}, 
+{"id": 4, "anchors": [{"from": 4, "end": 4}], "label": "_a_1", "lemma": "often", "is_surface": true}, 
+{"id": 5, "anchors": [{"from": 5, "end": 5}], "label": "_a_1", "lemma": "funny", "is_surface": true}], 
+
+
+
+
+"edges": [
+{"id": 0, "source": 1, "target": 0, "label": "BV"}, 
+{"id": 1, "source": 2, "target": 0, "label": "ARG1"},
+ {"id": 2, "source": 3, "target": 2, "label": "L-HNDL"}, 
+{"id": 3, "source": 3, "target": 2, "label": "L-INDEX"}, 
+{"id": 4, "source": 3, "target": 5, "label": "R-HNDL"}, 
+{"id": 5, "source": 3, "target": 5, "label": "R-INDEX"}, 
+{"id": 6, "source": 4, "target": 5, "label": "ARG1"}, 
+{"id": 7, "source": 5, "target": 0, "label": "ARG1"}
+], 
+"tops": [3]}
