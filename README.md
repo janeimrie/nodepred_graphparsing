@@ -4,12 +4,12 @@ This repo contains the experiment for Node Prediction in Meaning Representation 
 
 This code facilitates the creation of Flair SequenceTagger models with either Glove or BERT embeddings.
 
-Data for these experiments is sourced from [this repository]{https://gitlab.cs.uct.ac.za/jbuys/mrs-processing}(accessible with UCT staff and student emails). Run the following line once the repo has been cloned and the data has been downloaded:
+Data for these experiments is sourced from this repository: https://gitlab.cs.uct.ac.za/jbuys/mrs-processing (accessible with UCT staff and student emails). Run the following line once the repo has been cloned and the data has been downloaded:
     python src/extract-convert-mrs.py --deepbank --eds -i data/original/erg1214/tsdb/gold/ -o data/extracted/ --convert_semantics --extract_semantics --extract_semantic_trees 2> data/extracted/all.err
 
 This will extract the EDS data and convert it to tree form.
 
-Then run the dataset.py command from [this repository]{https://github.com/aghie/tree2labels}, with the os and encode unaries flags enabled. 
+Then run the dataset.py command from this repository: https://github.com/aghie/tree2labels, with the os and encode unaries flags enabled. 
 
 Then, the data files need to formatted into a ColumnCorpus format and amalgamated:
     mkdir corpus
@@ -22,7 +22,6 @@ To create models, create a .txt file with the model parameters in it. An example
     {"Model Name" : "Surface Tokens + Glove+ No CRF", "Embedding Type" : "Glove", "Label Type" : "surface" , "Hidden Layer Size": "256", "Use CRF": "False", "Output path":"./models/model_", "Load premade label dictionary" : "False" ,"Training Parameters":{"Learning Rate" : "0.1" , "Max epochs": "30" , "Mini Batch Size": "10", "Mini Batch Chunk Size" : "None", "Checkpoint" : "True", "Plot training curves and weights" : "False"}}
 
 The first line, the # followed by the model name, is optional. 
-
 
 To create a model and initiate training, (example):
 
