@@ -1,15 +1,16 @@
-from operator import itemgetter
 import string
-import os
 import data_loader as DL
 import evaluation as evl
 import torch
+import copy
+import utils as utils
 from flair.embeddings import WordEmbeddings, TransformerWordEmbeddings
-from flair.models import SequenceTagger, MultiTagger
+from flair.models import SequenceTagger
 from flair.trainers import ModelTrainer
 from flair.visual.training_curves import Plotter
-from flair.data import Dictionary, Sentence
+from flair.data import Dictionary
 from flair.hyperparameter.param_selection import SearchSpace, Parameter, SequenceTaggerParamSelector
+from torch.optim.adam import Adam
 from hyperopt import hp
 
 
@@ -19,6 +20,30 @@ class ModelManager:
         pass
 
     def create_model(self, model_name, data_label_type, transformer_embedding_type, hidden_layer_size, crf,  load_premade_label_dict, training_parameters):
+        """Creates a Flair SequenceTagger model object with given parameters
+
+        Parameters
+        ----------
+        model_name : String
+            Name for model
+        data_label_type : String
+            Type of concept being predicted - surface or abstract
+        transformer_embedding_type : String
+            Embedding type - either Glove or BERT
+        hidden_layer_size : Int
+            Number of hidden layers
+        crf : String
+            Either Yes/No for presence of CRF layer
+        load_premade_label_dict : Boolean
+            True for if want to load a premade dictionary stored on disk
+        training_parameters : Dictionary
+            Training parameters for the model - including learning rate, batch size, etc
+
+        Returns
+        -------
+        SequenceTagger
+            Model object created using the parameters
+        """
         chpc = False
         if chpc:
             corp = "/home/jimrie/lustre/jimrie/Code"
@@ -77,9 +102,32 @@ class ModelManager:
 
         return model
 
-
-
     def train_model(self, model, model_name ,model_corpus, embedding_type,learning__rate, max__epochs, mini_batch__size, mini_batch_chunk__size = None, m_checkpoint=True, plot_training_curves_and_weights = True):
+        """Method used for training model. Parameters are used to specify training regime.
+
+        Parameters
+        ----------
+        model : SequenceTagger
+            Model object created using create_model() 
+        model_name : String
+            Descriptive name for model
+        model_corpus : Corpus
+            Corpus containing formatted data for model
+        embedding_type : String
+            Either BERT or Glove
+        learning__rate : float 
+            Learning rate for model
+        max__epochs : int
+            Max amount of epochs for model during training, early stopping employed
+        mini_batch__size : int
+            Batch size for model
+        mini_batch_chunk__size : _type_, optional
+            Batch chunk size for model, by default None
+        m_checkpoint : bool, optional
+            Enable to allow model training to be resumed, by default True
+        plot_training_curves_and_weights : bool, optional
+            Enable to allow a file of model weights to be created, which can then be plotted, by default True
+        """
         chpc = False
         mod = "/home/jimrie/lustre/jimrie/Code/nodepred_graphparsing"
         trainer = ModelTrainer(model, corpus= model_corpus)
@@ -135,18 +183,24 @@ class ModelManager:
                     plotter = Plotter()
                     plotter.plot_training_curves(f'{mod_dir}/loss.tsv')
                     plotter.plot_weights(f'{mod_dir}/weights.txt')
-
-    
-        
+     
     def resume_training(self, path, num_epochs : int):
+        """Resume training for a model
+
+        Parameters
+        ----------
+        path : String
+            path to model folder that contains checkpoint.pt file
+        num_epochs : int
+            New maximum number of epochs for the given model. Training epochs is now difference between previous max epochs and new max epochs
+        """
         # continue training at later point. Load previously trained model checkpoint, then resume
-        
+        print(f"Resuming traing for {num_epochs} epochs")
         
         experiment = False
+        trained_model = SequenceTagger.load(path + "/checkpoint.pt")
 
         if experiment:
-            trained_model = SequenceTagger.load(path + '/checkpoint.pt')
-
             trainer = ModelTrainer(trained_model, corpus= DL.create_corpus())
             # resume training best model
             trainer.resume(trained_model,
@@ -154,67 +208,159 @@ class ModelManager:
                 max_epochs=num_epochs
                 )
 
-    def run_predictions(self, path : string, token_list : list, target_nodes : list):
-        print("Performing evaluation...")
-        plotter = Plotter()
-        plotter.plot_training_curves(f'{path}\loss.tsv')
-        plotter.plot_weights(f'{path}\weights.txt')
-        print("Plotting loss curves now...")
-        #print(os.getcwd())
+    def run_predictions(self, path : string, token_list : list, target_nodes : list, target_tags : list, label_type):
+        """ Method for getting predictions from a model given a test bed
 
-        experiment = False
+        Parameters
+        ----------
+        path : string
+            Path to model
+        token_list : list
+            List of sentences that have been tokenised
+        target_nodes : list
+            List of gold spans
+        target_tags : list
+            List of gold tags 
+        label_type : String
+            Label type for the model, either surface_ner or linearised_labels
+        """
+        print("Performing evaluation...")
+
+        experiment = True
 
         if experiment:
             chpc = False
+            #print(target_nodes)
             print("Running predictions for dev set now")
+            print(path)
             if chpc:
-                mod_path = f"/home/jimrie/lustre/jimrie/Code/nodepred_graphparsing/models/{path}/final-model.pt"
+                mod_path = f"{path}/final-model.pt"
             else:
-                mod_path = "./models/Sur/final-model.pt"
+                mod_path = path
             #print(mod_path)
             trained_model = SequenceTagger.load(model_path = mod_path)
-            input = token_list[0]
-            sentence = Sentence("Rockwell International Corp's Tulsa unit said it signed a tentative agreement extending its contract with Boeing Co to provide structural parts for Boeing's 747 jetliners")
+            sentence_list = copy.deepcopy(token_list)
+            trained_model.predict(sentence_list)
+            initial_predicted_list = [item.get_labels() for item in sentence_list]
+            if label_type =="surface_ner":
+                predicted_spans = []
+                outside_counter = 0
+                predicted_tags = []
+                for sublist in initial_predicted_list:
+                    counter = 0
+                    temp_list = []
+                    sentence = sentence_list[outside_counter]
+                    for token in sublist:
+                        #print(token)
+                        predicted_tags.append(token.value)
+                        tag_list = evl.strip_bio_tags(token.value).split(";")
+                        if len(tag_list) == 1:
+                            tag = tag_list[0]
+                            if tag != "None":
+                                tup = [counter, counter, tag , sentence[counter].text]
+                                temp_list.append(tup)
+                        else:
+                            for multi_tag in tag_list:
+                                tup = [counter, counter, multi_tag , sentence[counter].text]
+                                temp_list.append(tup)
+                        counter+=1
+                    predicted_spans.append(temp_list)
+                    outside_counter+=1
+                
+                #print("Predicted Spans")
+                #print(predicted_spans)
+                #print(target_tags)
+                evl.run_evaluation(tag_preds= predicted_tags, tag_gold= target_tags , gold_spans=target_nodes, predicted_spans=predicted_spans, label = label_type)
+            else:
+                predicted_spans = []
+                predicted_labels = []
+                #print(initial_predicted_list)
+                outside_counter = 0
+                predicted_tags = []
+                for sublist in initial_predicted_list:
+                    counter = 0
+                    temp_list = []
+                    other_temp_list =[]
+                    sentence = sentence_list[outside_counter]
+                    for token in sublist:
+                        temp_tag = token.value
+                        predicted_tags.append(temp_tag)
+                        other_temp_list.append(temp_tag)
+                        tup = (sentence[counter].text, "XX")
+                        temp_list.append(tup)
+                        counter+=1
+                    predicted_spans.append(temp_list)
+                    predicted_labels.append(other_temp_list)
+                    outside_counter+=1
+                gold_target_tags = [*filter(utils.check_space, target_tags)]
+
+                evl.run_evaluation(tag_preds=predicted_tags, tag_gold= gold_target_tags, gold_spans= target_nodes, predicted_spans=[predicted_spans,predicted_labels], label=label_type )
+
+    def hyperparameter_tuning(label_type, model_path, tagtype, epochs, embedding,):
+        """ Tuning method for dropout
+
+        Parameters
+        ----------
+        label_type : String
+            Label for model, either surface_ner or linearised_labels
+        model_path : String
+            Path to model that includes final-model.pt
+        tagtype : String
             
-            trained_model.predict(sentence)
-            print(sentence)
-            #for label in sentence.get_labels():
-            #    print(label)
-            print(sentence.annotation_layers)
-            #print(token_list[0])
-            #sentence_list = token_list.copy()
-            #trained_model.predict(sentence_list)
-            ##initial_list = [item.get_labels('surface') for item in sentence_list]
-            #final_predictions_list = [] #[item.value for item in initial_list]
-            #for item in sentence_list:
-            #    for label in item.get_labels('surface'):
-            #        final_predictions_list.append(label.value)
-            #print(len(final_predictions_list))
-            #print(len(target_nodes))
-            #outcomes_surface = evl.run_evaluation(pred = final_predictions_list, targ=target_nodes,label_type='surface')
-            #return outcomes_surface
+        epochs : int
+            Number of epochs for tuning
+        embedding : String
+            Embedding type - either BERT or Glove
+        """
 
-        
-    def hyperparameter_tuning(label_type, model_path, epochs, training__runs, embedding, hidden_size, dropout, 
-                learning_rate, mini_batch_size):
-        
-        #https://github.com/flairNLP/flair/blob/master/resources/docs/TUTORIAL_8_MODEL_OPTIMIZATION.m 
-
+       
         # define your search space
         search_space = SearchSpace()
         corpus = DL.create_corpus()
 
+        if embedding == "BERT":
+            embeddings = TransformerWordEmbeddings(model = 'SpanBERT/spanbert-base-cased',
+                                                fine_tune=True,
+                                                subtoken_pooling = 'first_last')
+        else:
+            embeddings = WordEmbeddings('glove')
+
         #Embeddings must always be filled, even if just trialing one
-        search_space.add(Parameter.EMBEDDINGS, hp.choice, options=[embedding])
-        search_space.add(Parameter.HIDDEN_SIZE, hp.choice, options=[128, 512, 1024])
-        search_space.add(Parameter.DROPOUT, hp.uniform, low=0.01, high=0.1)
-        search_space.add(Parameter.LEARNING_RATE, hp.choice, options=[0.05, 0.1, 0.15, 0.2])
-        search_space.add(Parameter.MINI_BATCH_SIZE, hp.choice, options=[8, 16, 32])
+        search_space.add(Parameter.EMBEDDINGS, hp.choice, options=[embeddings])
+        search_space.add(Parameter.DROPOUT, hp.uniform, low=0.2, high=0.5)
 
+        #only one training run for resource reasons
         param_selector = SequenceTaggerParamSelector(corpus,
-                                             'ner',
-                                             'resources/results',
-                                             training_runs=3,
-                                             max_epochs=5)
+                                             tagtype,
+                                             model_path,
+                                             max_epochs=epochs)
+        experiment = False
 
+        if experiment:
+            # start the optimization
+            print("Optimising the current model.......")
+            param_selector.optimize(search_space, max_evals=1)
+
+    def find_opt_learning_rate(self, mod_path, itrs, mini_b_size):
+        """Uses cyclical learning rates to find the optimal learning rate for a model
+
+        Parameters
+        ----------
+        mod_path : String
+            Path to model
+        itrs : int
+            Number of iterations for the learning rate cycle
+        mini_b_size : int
+            Batch size for model
+        """
+        print(f"Finding opt learning rate with {itrs}# of iterations and batch size {mini_b_size} ")
+        trained_model = SequenceTagger.load(model_path = f"{mod_path}/final-model.pt")
+        corpus = DL.create_corpus()
         
+        find_learning_rate = False
+        if find_learning_rate:
+            #initialize trainer
+            trainer: ModelTrainer = ModelTrainer(trained_model, corpus)
+            #find learning rate
+            learning_rate_tsv = trainer.find_learning_rate(mod_path, Adam, end_learning_rate=0.1, iterations=itrs ,mini_batch_size=mini_b_size)
+
